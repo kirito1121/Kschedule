@@ -1,0 +1,74 @@
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /clients/{clientId} {
+    	allow read,update: if request.auth.uid == clientId
+    }
+    function checkUid() {
+    	return resource.data.uid.includes(request.auth.uid);
+		}
+
+    match /brands/{brand} {
+      // cho phep xem danh sach brand va chi tiet brand
+    	allow read: if request.auth.uid == resource.data.uid
+      // cho phep xoa va update brand cho client
+      allow write: if request.auth.uid == resource.data.uid
+      
+      // allow create: if request.auth.uid == request.resource.data.uid
+      
+      match /services/{sv}{
+      	// cho phep xem service va danh sach service
+      	allow list
+      	allow get : if get(/databases/$(database)/documents/brands/$(brand)).data.id == resource.data.brand_id
+        // cho phep client va manager update service
+      	allow update: if existsUidClient(request.auth.uid)
+      	|| (existsUidStaff(request.auth.uid)
+      	&& getRuleStaff(request.auth.uid) == "manager")
+      	
+      	// allow update: if existsUidStaff(request.auth.uid)
+      	
+        // cho phep client create va update service                      	
+      	allow create,delete: if existsUidClient(request.auth.uid)
+    	}
+      match /stores/{store}{
+      	allow read
+        allow write: if existsUidClient(request.auth.uid)
+      }
+      match /staffs/{staff}{
+      	allow get,update: if existsUidClient(request.auth.uid) 
+        || getRuleStaff(request.auth.uid) == "manager" 
+        || existsUidStaff(request.auth.uid)
+        
+      	allow list,create,delete: if existsUidClient(request.auth.uid) 
+        && getUidClient(request.auth.uid) == getBrand(brand).data.uid
+        || getRuleStaff(request.auth.uid) == "manager"
+        && getBrandStaff(request.auth.uid) == getIdBrand(brand)
+      }
+      
+      function existsUidClient(uid){
+      	// kiem tra client co ton tai
+    	 	return exists(/databases/$(database)/documents/clients/$(uid))
+    	}
+      function getUidClient(uid){
+      	//lay uid client co ton tai
+    	 	return get(/databases/$(database)/documents/clients/$(uid)).data.uid
+    	}
+    
+    	function existsUidStaff(uid){
+      	// kiem tra nhan vien co ton tai
+    	 	return exists(/databases/$(database)/documents/brands/$(brand)/staffs/$(uid))
+    	}
+      function getRuleStaff(uid){
+      	// Lay rule cua nhan vien
+    	 	return get(/databases/$(database)/documents/brands/$(brand)/staffs/$(uid)).data.rule
+    	}
+      function getBrandStaff(uid){
+      	// Lay brand cua staff
+    	 	return get(/databases/$(database)/documents/brands/$(brand)/staffs/$(uid)).data.brand_id
+    	}
+      function getIdBrand(brand){
+      	// lay id brand
+    	 	return get(/databases/$(database)/documents/brands/$(brand)).data.id
+    	}
+    }
+  }
+}
